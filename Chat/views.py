@@ -15,7 +15,9 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Conversation.objects.filter(user=user) if not user.is_staff else Conversation.objects.all()
+        if user.is_authenticated:
+            return Conversation.objects.filter(user=user) if not user.is_staff else Conversation.objects.all()
+        return Conversation.objects.none()
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -25,7 +27,10 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         conversation_id = self.request.query_params.get("conversation")
-        return Message.objects.filter(conversation=conversation_id)
+        user = self.request.user
+        if not user.is_authenticated:
+            return Message.objects.none()
+        return Message.objects.filter(conversation_id=conversation_id)
 
     def perform_create(self, serializer):
         message = serializer.save(sender=self.request.user)
@@ -37,37 +42,45 @@ class MessageViewSet(viewsets.ModelViewSet):
         sender = message.sender
         recipient = conversation.agent if sender == conversation.user else conversation.user
 
-        # Create a notification
-        Notification.objects.create(
-            user=recipient,
-            conversation=conversation,
-            message=f"New message from {sender.username}: {message.content}"
-        )
-
-        # Send email notification
-        if recipient.email:
-            send_mail(
-                subject=f"New Message in Conversation {conversation.id}",
-                message=message.content,
-                from_email="support@matrixmomentum.com",
-                recipient_list=[recipient.email],
-                fail_silently=False,
+        if recipient:
+            # Avoid duplicate notifications
+            Notification.objects.get_or_create(
+                user=recipient,
+                conversation=conversation,
+                defaults={
+                    'message': f"New message from {sender.username}: {message.content}"
+                }
             )
 
+            # Send email notification
+            if recipient.email:
+                try:
+                    send_mail(
+                        subject=f"New Message in Conversation {conversation.id}",
+                        message=message.content,
+                        from_email="support@matrixmomentum.com",
+                        recipient_list=[recipient.email],
+                        fail_silently=False,
+                    )
+                except Exception as e:
+                    # Log email sending errors
+                    print(f"Failed to send email: {e}")
+
     def send_websocket_notification(self, message):
-        # Send real-time WebSocket notification
         channel_layer = get_channel_layer()
         room_group_name = f'chat_{message.conversation.id}'
-
-        async_to_sync(channel_layer.group_send)(
-            room_group_name,
-            {
-                'type': 'chat_message',
-                'message': message.content,
-                'sender': message.sender.username,
-                'timestamp': message.timestamp.isoformat(),
-            }
-        )
+        try:
+            async_to_sync(channel_layer.group_send)(
+                room_group_name,
+                {
+                    'type': 'chat_message',
+                    'message': message.content,
+                    'sender': message.sender.username,
+                    'timestamp': message.timestamp.isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Failed to send WebSocket notification: {e}")
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
