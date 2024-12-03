@@ -56,7 +56,9 @@ INSTALLED_APPS = [
     'ReferralLinks',
     'Withdraw',
     'EditAccount',
-    'Security'
+    'Security',
+    'Chat',
+    'channels',
 ]
 
 SIMPLE_JWT = {
@@ -112,7 +114,7 @@ REST_FRAMEWORK = {
 }
 
 WSGI_APPLICATION = 'jwt_auth.wsgi.application'
-
+ASGI_APPLICATION = 'jwt_auth.asgi.application'
 AUTH_USER_MODEL = 'account.User'
 ACCOUNT_UNIQUE_EMAIL=True
 
@@ -145,6 +147,17 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+ASGI_APPLICATION = 'jwt_auth.asgi.application'
+
+ASGI_APPLICATION = 'your_project_name.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
