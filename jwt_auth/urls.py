@@ -61,4 +61,5 @@ urlpatterns = [
     path('withdraw/', include('Withdraw.urls')),
     path('EditAccount/', include('EditAccount.urls')),
     path('security/', include('Security.urls')),
+    path('Chat/', include('Chat.urls')),
 ]
